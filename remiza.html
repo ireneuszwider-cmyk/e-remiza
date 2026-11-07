@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>e-Remiza</title>
+<style>
+  :root { --navy:#14213d; --red:#c8102e; --bg:#e9edf3; --ink:#17202e; --muted:#5b677a; --line:#cfd7e3; --green:#22c55e; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; min-height:100vh; }
+  body::before { content:""; display:block; height:8px; background:var(--red); }
+  .hidden { display:none !important; }
+  header { background:var(--navy); color:#fff; padding:14px 20px; display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+  header strong { font-size:1.15rem; }
+  header span { color:#aab6cc; font-size:.85rem; display:block; }
+  header .sp { flex:1; }
+  main { max-width:760px; margin:0 auto; padding:22px 16px 60px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:10px; padding:22px; box-shadow:0 6px 20px rgba(20,33,61,.08); margin-bottom:18px; }
+  h2 { margin:0 0 10px; color:var(--navy); font-size:1.25rem; }
+  button { font:inherit; cursor:pointer; border:0; border-radius:8px; padding:12px 20px; font-weight:600; }
+  .primary { background:var(--red); color:#fff; } .primary:hover { background:#a80d26; }
+  .secondary { background:var(--navy); color:#fff; }
+  .ghost { background:transparent; color:inherit; border:1px solid currentColor; padding:8px 14px; font-weight:500; }
+  :focus-visible { outline:3px solid #3b82f6; outline-offset:2px; }
+  label.f { display:block; font-weight:600; margin:14px 0 4px; font-size:.92rem; color:var(--navy); }
+  input, select { width:100%; font:inherit; padding:10px 12px; border:1px solid var(--line); border-radius:8px; background:#fbfcfe; }
+  .err { color:var(--red); font-weight:600; min-height:1.4em; margin:10px 0 0; }
+  #login { max-width:380px; margin:7vh auto 0; }
+  #login button { width:100%; margin-top:16px; }
+  .lamp { display:inline-block; width:14px; height:14px; border-radius:50%; background:#94a3b8; vertical-align:middle; margin-right:8px; }
+  .lamp.on { background:var(--green); box-shadow:0 0 0 3px #d1fae5, 0 0 12px 2px rgba(34,197,94,.7); }
+  .lamp.off { background:#ef4444; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; }
+  .item { border-top:1px solid var(--line); padding:10px 0; }
+  .item b { color:var(--navy); }
+  .item small { color:var(--muted); display:block; }
+  .tag { display:inline-block; font-size:.8rem; font-weight:700; border-radius:999px; padding:1px 10px; background:#e2e8f0; margin-left:6px; }
+  .tag.ok { background:#d7f5e0; color:#15803d; }
+  /* ALARM */
+  #alarm { position:fixed; inset:0; z-index:50; overflow:auto; background:#b00020; color:#fff; padding:24px 18px 40px; animation:puls 1s infinite; }
+  @keyframes puls { 0%,100% { background:#b00020; } 50% { background:#7a0016; } }
+  @media (prefers-reduced-motion: reduce) { #alarm { animation:none; } }
+  #alarm .in { max-width:680px; margin:0 auto; }
+  #alarm h1 { font-size:2.6rem; margin:0; letter-spacing:2px; }
+  #alarm .nr { opacity:.85; margin-bottom:16px; }
+  #alarm dl { margin:0; } #alarm dt { opacity:.75; font-size:.85rem; margin-top:12px; } #alarm dd { margin:0; font-size:1.25rem; font-weight:700; white-space:pre-wrap; word-break:break-word; }
+  #alarm .btns { display:grid; gap:12px; margin-top:26px; }
+  #alarm button { font-size:1.2rem; padding:18px; }
+  #alarm .b1 { background:#fff; color:#7a0016; } #alarm .b2 { background:#1fa43b; color:#fff; }
+</style>
+</head>
+<body>
+<header id="bar" class="hidden">
+  <div><strong>e-Remiza</strong><span id="unitName"></span></div>
+  <div class="sp"></div>
+  <div><span class="lamp" id="lamp"></span><span id="conn" style="display:inline;color:#fff">łączenie…</span></div>
+  <button class="ghost" id="logout" type="button">Wyloguj</button>
+</header>
+
+<main>
+  <section id="login" class="card">
+    <h2>e-Remiza – logowanie</h2>
+    <form id="loginForm" autocomplete="off">
+      <label class="f" for="u">Login</label><input id="u" type="text" required>
+      <label class="f" for="p">Hasło</label><input id="p" type="password" required>
+      <label class="f" for="unit">Jednostka</label>
+      <select id="unit"></select>
+      <p class="err" id="loginErr" role="alert"></p>
+      <button class="primary" type="submit">Zaloguj się</button>
+    </form>
+  </section>
+
+  <section id="home" class="hidden">
+    <div class="card">
+      <h2>Gotowość do alarmu</h2>
+      <p id="ready" style="margin:0">Oczekiwanie na alarm.</p>
+      <p id="soundInfo" style="margin:6px 0 0;color:var(--muted)"></p>
+      <div class="row">
+        <button class="secondary" id="enSound" type="button">Włącz dźwięk alarmu</button>
+        <button class="ghost" id="test" type="button" style="color:var(--navy)">Test alarmu (lokalnie)</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Ostatnie alarmy</h2>
+      <div id="hist"></div>
+    </div>
+  </section>
+</main>
+
+<div id="alarm" class="hidden" role="alertdialog" aria-labelledby="aTitle">
+  <div class="in">
+    <h1 id="aTitle">ALARM</h1>
+    <div class="nr" id="aNr"></div>
+    <dl id="aBody"></dl>
+    <div class="btns">
+      <button class="b1" id="bRecv" type="button">Potwierdzam odbiór</button>
+      <button class="b2" id="bGo" type="button">Wyjazd</button>
+    </div>
+    <p id="aErr" style="font-weight:700;margin-top:12px"></p>
+  </div>
+</div>
+
+<script src="alarm-channel.js"></script>
+<script>
+  const LOGIN = "TEST", HASLO = "TEST";
+  const UNITS = [["JRG1", "JRG 1"], ["JRG2", "JRG 2"], ["OSP", "OSP (409)"], ["*", "Wszystkie jednostki (test)"]];
+  const RODZAJE = { P: "Pożar", MZ: "Miejscowe zagrożenie", AF: "Alarm fałszywy" };
+  const $ = (id) => document.getElementById(id);
+  const pad = (n) => String(n).padStart(2, "0");
+  const hm = (iso) => { const d = iso ? new Date(iso) : new Date(); return pad(d.getHours()) + ":" + pad(d.getMinutes()); };
+  const unitOf = (inw) => String(inw).split("-")[0];
+  const unitLabel = (u) => (UNITS.find((x) => x[0] === u) || [0, u])[1];
+  const mk = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+
+  let me = { unit: "JRG1" }, hist = [], active = null, listening = false;
+  try { hist = JSON.parse(localStorage.getItem("remiza-hist")) || []; } catch (e) {}
+  const saveHist = () => { try { localStorage.setItem("remiza-hist", JSON.stringify(hist.slice(0, 50))); } catch (e) {} };
+
+  UNITS.forEach(([v, n]) => $("unit").appendChild(new Option(n, v)));
+  try { const u = localStorage.getItem("remiza-unit"); if (u) $("unit").value = u; } catch (e) {}
+
+  /* --- dźwięk --- */
+  let AC = null, siren = null;
+  function unlock() {
+    try { AC = AC || new (window.AudioContext || window.webkitAudioContext)(); AC.resume(); } catch (e) {}
+    $("soundInfo").textContent = AC ? "Dźwięk alarmu: włączony." : "Ta przeglądarka nie obsługuje dźwięku.";
+    $("enSound").classList.toggle("hidden", !!AC);
+  }
+  function startSiren() {
+    if (!AC || siren) return;
+    const o = AC.createOscillator(), g = AC.createGain();
+    o.type = "triangle"; g.gain.value = 0.25; o.connect(g); g.connect(AC.destination); o.start();
+    let hi = true;
+    const f = () => { o.frequency.setValueAtTime(hi ? 960 : 770, AC.currentTime); hi = !hi; };
+    f(); siren = { o, t: setInterval(f, 550) };
+  }
+  function stopSiren() { if (siren) { clearInterval(siren.t); try { siren.o.stop(); } catch (e) {} siren = null; } }
+  $("enSound").addEventListener("click", unlock);
+
+  /* --- logowanie --- */
+  function enter() {
+    $("login").classList.add("hidden"); $("home").classList.remove("hidden"); $("bar").classList.remove("hidden");
+    $("unitName").textContent = unitLabel(me.unit);
+    unlock();
+    renderHist();
+    if (!listening) { listening = true; AlarmChannel.listen(onMsg, setConn); }
+  }
+  $("loginForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    if ($("u").value !== LOGIN || $("p").value !== HASLO) { $("loginErr").textContent = "Nieprawidłowy login lub hasło."; return; }
+    me.unit = $("unit").value;
+    try { localStorage.setItem("remiza-unit", me.unit); } catch (e2) {}
+    enter();
+  });
+  $("logout").addEventListener("click", () => { stopSiren(); $("alarm").classList.add("hidden"); location.reload(); });
+
+  function setConn(ok) {
+    $("lamp").className = "lamp " + (ok ? "on" : "off");
+    $("conn").textContent = ok ? "Połączono (" + AlarmChannel.mode + ")" : "Brak połączenia";
+  }
+
+  /* --- odbiór alarmu --- */
+  const mine = (m) => (m.pojazdy || []).filter((p) => me.unit === "*" || unitOf(p.inw) === me.unit);
+
+  function onMsg(m, isHist) {
+    if (m.typ !== "alarm" || !mine(m).length) return;
+    if (!hist.some((h) => h.id === m.id)) {
+      hist.unshift({ id: m.id, nr: m.nr, rodzaj: m.rodzaj, adres: m.adres, ts: m.ts, stan: "Nowy" });
+      saveHist(); renderHist();
+    }
+    if (!isHist) raise(m);
+  }
+
+  function setStan(id, stan) { const h = hist.find((x) => x.id === id); if (h) { h.stan = stan; saveHist(); renderHist(); } }
+
+  function raise(m) {
+    active = m;
+    $("aNr").textContent = (m.nr || "") + " · " + hm(m.ts);
+    const dl = $("aBody"); dl.innerHTML = "";
+    const add = (k, v) => { if (!v) return; dl.append(mk("dt", "", k), mk("dd", "", v)); };
+    add("Rodzaj zdarzenia", (RODZAJE[m.rodzaj] ? RODZAJE[m.rodzaj] + " (" + m.rodzaj + ")" : m.rodzaj));
+    add("Adres", m.adres);
+    add("Rejon operacyjny", m.rejon);
+    add("Opis", m.opis);
+    add("Dyspozycja – Twoje pojazdy", mine(m).map((p) => p.name).join("\n"));
+    add("Flagi", (m.flagi || []).join("\n"));
+    $("aErr").textContent = "";
+    $("bRecv").disabled = false;
+    $("alarm").classList.remove("hidden");
+    $("bRecv").focus();
+    startSiren();
+    try { navigator.vibrate && navigator.vibrate([400, 200, 400, 200, 400]); } catch (e) {}
+  }
+
+  function ack(akcja) {
+    if (!active) return Promise.resolve();
+    const m = active;
+    return AlarmChannel.send({ typ: "ack", alarmId: m.id, nr: m.nr, jednostka: me.unit, akcja, pojazdy: mine(m) })
+      .catch(() => { $("aErr").textContent = "Nie udało się wysłać potwierdzenia. Spróbuj ponownie."; throw 0; });
+  }
+  $("bRecv").addEventListener("click", () => ack("odbior").then(() => { stopSiren(); $("bRecv").disabled = true; setStan(active.id, "Odebrano"); }).catch(() => {}));
+  $("bGo").addEventListener("click", () => ack("wyjazd").then(() => { stopSiren(); setStan(active.id, "Wyjazd"); $("alarm").classList.add("hidden"); active = null; }).catch(() => {}));
+
+  function renderHist() {
+    const box = $("hist"); box.innerHTML = "";
+    if (!hist.length) { box.appendChild(mk("p", "", "Brak alarmów.")); box.firstChild.style.color = "var(--muted)"; return; }
+    hist.slice(0, 20).forEach((h) => {
+      const d = mk("div", "item"), b = mk("b", "", h.nr || "Alarm");
+      b.appendChild(mk("span", "tag" + (h.stan === "Wyjazd" ? " ok" : ""), h.stan));
+      d.append(b, mk("small", "", (RODZAJE[h.rodzaj] || h.rodzaj) + " · " + h.adres + " · " + hm(h.ts)));
+      box.appendChild(d);
+    });
+  }
+
+  $("test").addEventListener("click", () => {
+    unlock();
+    const pojazd = me.unit === "OSP" ? ["GF 409-71 GBARt Renalut D16/Szczęśniak", "OSP-40971"] : me.unit === "JRG2" ? ["GF 402-21 GBA Renault D16/ Stolarczyk", "JRG2-40221"] : ["GF 401-21 GBA MAN MT", "JRG1-40121"];
+    onMsg({ id: "test" + Date.now(), typ: "alarm", nr: "ALARM TESTOWY", rodzaj: "P", adres: "ul. Testowa 1 (test lokalny)", opis: "To jest test – alarm nie został wysłany do sieci.", rejon: "", flagi: [], pojazdy: [{ name: pojazd[0], inw: pojazd[1] }], ts: new Date().toISOString() }, false);
+  });
+</script>
+</body>
+</html>
