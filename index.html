@@ -140,6 +140,37 @@
   dialog::backdrop { background: rgba(0,0,0,.6); }
   .map { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin: 12px 0; }
   .map div { aspect-ratio: 4/3; display: grid; place-items: center; color: #fff; font-weight: 800; border-radius: 4px; text-align: center; }
+
+  /* ===== Karty KDR / KMDR, historia z paskiem, powiadomienia ===== */
+  main.wide { max-width: 980px; }
+  .fl { display: block; font-weight: 600; margin: 14px 0 4px; font-size: .92rem; color: var(--navy); }
+  .grp { margin-top: 6px; }
+  .histwrap { display: grid; grid-template-columns: 250px 1fr; gap: 16px; align-items: start; }
+  .hside { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 8px; position: sticky; top: 12px; display: grid; gap: 4px; }
+  .hside button { display: flex; justify-content: space-between; align-items: center; gap: 10px; width: 100%; text-align: left; background: transparent; color: var(--ink); padding: 12px; border-radius: 8px; font-weight: 600; }
+  .hside button:hover { background: #eef2f8; }
+  .hside button.on { background: var(--navy); color: #fff; }
+  .hside .n { font-size: .8rem; background: #e2e8f0; color: var(--navy); border-radius: 999px; padding: 1px 9px; flex: none; }
+  .hside button.on .n { background: #fff; }
+  .item small + small { margin-top: 2px; }
+  .kv.one { grid-template-columns: 1fr; }
+  .sheet h3.sec { margin: 18px 0 2px; color: var(--navy); border-bottom: 2px solid var(--red); padding-bottom: 4px; font-size: 1rem; }
+  @media (max-width: 700px) {
+    .histwrap { grid-template-columns: 1fr; }
+    .hside { display: flex; overflow-x: auto; position: static; }
+    .hside button { white-space: nowrap; width: auto; }
+  }
+  @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
+  .lamp { animation: blink 1.4s ease-in-out infinite; }
+  @keyframes tin { from { transform: translateY(14px); opacity: 0; } to { transform: none; opacity: 1; } }
+  #toasts { position: fixed; right: 16px; bottom: 16px; z-index: 200; display: grid; gap: 10px; width: min(380px, calc(100vw - 32px)); }
+  .toast { display: flex; gap: 12px; align-items: flex-start; background: #fff; color: var(--ink); border: 1px solid var(--line); border-left: 6px solid var(--green); border-radius: 10px; padding: 12px 10px 12px 14px; box-shadow: 0 10px 30px rgba(0,0,0,.28); animation: tin .25s ease-out; }
+  .toast .lamp { margin-top: 4px; }
+  .toast .tbody { flex: 1; text-align: left; background: transparent; color: inherit; padding: 0; font-weight: 400; display: grid; gap: 2px; }
+  .toast .tbody b { color: var(--navy); font-size: 1.05rem; }
+  .toast .tbody span { font-size: .88rem; color: var(--muted); }
+  .toast .tx { background: transparent; color: var(--muted); padding: 0 8px; font-size: 1.4rem; line-height: 1; }
+  @media (prefers-reduced-motion: reduce) { .lamp, .toast { animation: none; } }
 </style>
 </head>
 <body>
@@ -169,6 +200,8 @@
     <h2>Wybierz działanie</h2>
     <div class="menu">
       <button class="primary" id="goForm" type="button"><span>Karta Dyżurnego SKKW<small>Wypełnij nową kartę</small></span><span aria-hidden="true">+</span></button>
+      <button class="primary" id="goKdr" type="button"><span>Karta KDR z miejsca zdarzenia<small>Raport Kierującego Działaniami Ratowniczymi</small></span><span aria-hidden="true">+</span></button>
+      <button class="primary" id="goKmdr" type="button"><span>Karta KMDR<small>Koordynacja działań medycznych</small></span><span aria-hidden="true">+</span></button>
       <button class="secondary" id="goHist" type="button"><span>Historia Kart Dyżurnego SKKW<small>Wysłane karty</small></span><span aria-hidden="true">&#9776;</span></button>
       <button class="tertiary" id="goSwd" type="button"><span>System SWD-ST — Dyżurny<small>Status pojazdów i meldunek EWID-ST</small></span><span aria-hidden="true">&#9654;</span></button>
     </div>
@@ -245,11 +278,18 @@
 
   <!-- HISTORIA -->
   <section id="histView" class="hidden">
-    <div class="top"><h2>Historia kart</h2><button class="ghost" type="button" data-back>Wróć do menu</button></div>
-    <div id="histList"></div>
+    <div class="top"><h2>Historia Kart Dyżurnego SKKW</h2><button class="ghost" type="button" data-back>Wróć do menu</button></div>
+    <div class="histwrap">
+      <nav class="hside" id="histSide" aria-label="Rodzaje kart"></nav>
+      <div id="histList"></div>
+    </div>
   </section>
 
   <!-- PODGLĄD -->
+  <section id="cardView" class="hidden">
+    <div class="top"><h2 id="cardTitle"></h2><button class="ghost" type="button" data-back>Wróć do menu</button></div>
+    <form id="cardGen" class="card"></form>
+  </section>
   <section id="detailView" class="hidden">
     <div class="top"><span></span><button class="ghost" type="button" id="backHist">Wróć do historii</button></div>
     <div class="card sheet" id="sheet"></div>
@@ -312,29 +352,44 @@
   </dialog>
 </section>
 
+<div id="toasts" aria-live="polite"></div>
+
 <script src="alarm-channel.js"></script>
 <script>
   const LOGIN = "TEST", HASLO = "TEST";
   const KEY = "skkw-karty-v1", SESSION = "skkw-zalogowany";
   const $ = (id) => document.getElementById(id);
-  const views = ["login", "menu", "formView", "histView", "detailView", "swdSplash", "swdApp"];
+  const views = ["login", "menu", "formView", "cardView", "histView", "detailView", "swdSplash", "swdApp"];
 
   function show(name) {
     views.forEach((v) => $(v).classList.toggle("hidden", v !== name));
     const swdOn = name.startsWith("swd");
     $("main").classList.toggle("hidden", swdOn);
+    $("main").classList.toggle("wide", name === "histView");
     document.body.classList.toggle("swd", swdOn);
     $("bar").classList.toggle("hidden", name === "login" || swdOn);
     window.scrollTo(0, 0);
   }
 
-  function loadCards() {
-    try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) { return memory; }
-  }
-  let memory = [];
-  function saveCards(cards) {
-    memory = cards;
-    try { localStorage.setItem(KEY, JSON.stringify(cards)); } catch (e) {}
+  // ---- magazyn kart (SKKW, KDR, KMDR): pamięć przeglądarki + synchronizacja przez kanał (Firebase) ----
+  const CARDS_KEY = "karty-v2";
+  const CLIENT_ID = (() => {
+    try { let v = sessionStorage.getItem("client-id"); if (!v) { v = AlarmChannel.uid(); sessionStorage.setItem("client-id", v); } return v; }
+    catch (e) { return AlarmChannel.uid(); }
+  })();
+  let cardStore = {}, histTab = "skkw";
+  try { cardStore = JSON.parse(localStorage.getItem(CARDS_KEY)) || {}; } catch (e) {}
+  try {   // przeniesienie kart SKKW zapisanych w starszej wersji
+    (JSON.parse(localStorage.getItem(KEY)) || []).forEach((c) => {
+      const id = "old" + c.id;
+      if (!cardStore[id]) cardStore[id] = { id, kind: "skkw", number: c.number, sentAt: c.sentAt, data: c.data, od: "local" };
+    });
+  } catch (e) {}
+  function addCard(c) {
+    if (!c || !c.id || cardStore[c.id]) return false;
+    cardStore[c.id] = c;
+    try { localStorage.setItem(CARDS_KEY, JSON.stringify(cardStore)); } catch (e) {}
+    return true;
   }
 
   const pad = (n, l = 2) => String(n).padStart(l, "0");
@@ -367,30 +422,50 @@
   $("backHist").addEventListener("click", () => { renderHistory(); show("histView"); });
   document.querySelectorAll("[data-back]").forEach((b) => b.addEventListener("click", () => show("menu")));
 
-  // zapis karty
+  // zapis karty SKKW
   $("cardForm").addEventListener("submit", (e) => {
     e.preventDefault();
-    const data = Object.fromEntries(new FormData(e.target).entries());
-    const cards = loadCards();
-    const now = new Date();
-    const year = now.getFullYear();
-    const seq = cards.filter((c) => c.year === year).length + 1;
-    cards.push({ id: Date.now(), year, seq, number: "SKKW " + pad(seq, 3) + "/" + year, sentAt: now.toISOString(), data });
-    saveCards(cards);
-    e.target.reset();
-    renderHistory();
-    show("histView");
+    sendCard("skkw", Object.fromEntries(new FormData(e.target).entries()), e.target, e.submitter);
   });
 
-  // historia
+  function formErr(form, msg) {
+    let p = form.querySelector(".formerr");
+    if (!p) { p = document.createElement("p"); p.className = "err formerr"; p.setAttribute("role", "alert"); form.appendChild(p); }
+    p.textContent = msg;
+  }
+  // wysyła kartę kanałem (do wszystkich użytkowników), zapisuje ją w historii i przechodzi do jej podzakładki
+  function sendCard(kind, data, form, btn) {
+    const t = CARD_TYPES[kind], now = new Date(), year = now.getFullYear();
+    const n = Object.values(cardStore).filter((c) => c.kind === kind && new Date(c.sentAt).getFullYear() === year).length + 1;
+    const number = t.prefix + " " + pad(n, 3) + "/" + year;
+    const msg = { typ: "karta", kind, number, data, od: CLIENT_ID };
+    if (btn) btn.disabled = true;
+    formErr(form, "");
+    return AlarmChannel.send(msg).then(() => {
+      addCard({ id: msg.id, kind, number, sentAt: msg.ts, data, od: CLIENT_ID });
+      form.reset();
+      cardFormKind = "";
+      histTab = kind; renderHistory(); show("histView");
+    }).catch(() => formErr(form, "Nie udało się wysłać karty. Sprawdź połączenie i spróbuj ponownie."))
+      .finally(() => { if (btn) btn.disabled = false; });
+  }
+
+  // historia z paskiem podzakładek
   function renderHistory() {
-    const box = $("histList");
-    box.innerHTML = "";
-    const cards = loadCards().slice().reverse();
+    const side = $("histSide"); side.innerHTML = "";
+    const all = Object.values(cardStore);
+    Object.keys(CARD_TYPES).forEach((k) => {
+      const b = document.createElement("button"); b.type = "button"; if (k === histTab) b.className = "on";
+      const n = document.createElement("span"); n.className = "n"; n.textContent = all.filter((c) => c.kind === k).length;
+      b.append(document.createTextNode(CARD_TYPES[k].tab), n);
+      b.addEventListener("click", () => { histTab = k; renderHistory(); });
+      side.appendChild(b);
+    });
+    const box = $("histList"); box.innerHTML = "";
+    const cards = all.filter((c) => c.kind === histTab).sort((a, b) => String(b.sentAt).localeCompare(String(a.sentAt)));
     if (!cards.length) {
-      const p = document.createElement("p");
-      p.className = "empty";
-      p.textContent = "Brak wysłanych kart. Wypełnij pierwszą kartę z menu.";
+      const p = document.createElement("p"); p.className = "empty";
+      p.textContent = "Brak wysłanych kart w tej zakładce.";
       box.appendChild(p);
       return;
     }
@@ -401,16 +476,24 @@
       const lamp = document.createElement("span"); lamp.className = "lamp"; lamp.title = "Wysłano";
       const txt = document.createElement("span");
       const t = document.createElement("b"); t.textContent = c.number;
-      const s = document.createElement("small"); s.textContent = (c.data.rodzaj || "") + (c.data.adres ? " · " + c.data.adres : "");
-      txt.append(t, s);
+      const s = document.createElement("small"); s.textContent = cardSummary(c);
+      const s2 = document.createElement("small"); s2.textContent = "Wysłano: " + fmtSent(c.sentAt);
+      txt.append(t, s, document.createElement("br"), s2);
       b.append(lamp, txt);
-      b.addEventListener("click", () => openCard(c));
+      b.addEventListener("click", () => openAny(c));
       box.appendChild(b);
     });
+  }
+  function cardSummary(c) {
+    const d = c.data || {};
+    if (c.kind === "kdr") return [d.rodzaj, d.lokalizacja].filter(Boolean).join(" · ");
+    if (c.kind === "kmdr") return d.poszkodowani ? "Poszkodowani: " + d.poszkodowani : "";
+    return [d.rodzaj, d.adres].filter(Boolean).join(" · ");
   }
 
   // podgląd
   function openCard(c) {
+    histTab = "skkw";
     const d = c.data, sheet = $("sheet");
     sheet.innerHTML = "";
     const add = (tag, cls, text) => { const el = document.createElement(tag); if (cls) el.className = cls; el.textContent = text; sheet.appendChild(el); return el; };
@@ -447,6 +530,162 @@
     });
     sheet.appendChild(dl);
     show("detailView");
+  }
+
+
+  /* ===== Karty KDR i KMDR: pola odtworzone ze wzorów (zmiana pól = zmiana tej konfiguracji) ===== */
+  const CARD_TYPES = {
+    skkw: { prefix: "SKKW", tab: "Karty Dyżurnego SKKW", title: "Karta Dyżurnego SKKW", report: "Raport dyżurnego SKKW z zdarzenia" },
+    kdr: {
+      prefix: "KDR", tab: "Karty KDR z miejsca zdarzenia", title: "Karta KDR z miejsca zdarzenia",
+      report: "Raport Kierującego Działaniami Ratowniczymi z Zdarzenia",
+      sections: [
+        { title: "Informacje", row: true, fields: [
+          { name: "data", label: "Kraków, dnia", type: "date", required: true },
+          { name: "godzinaPrzyjazdu", label: "Godzina przyjazdu pierwszego zastępu działań", type: "time", required: true },
+          { name: "godzinaZakonczenia", label: "Godzina zakończenia", type: "time" } ] },
+        { title: "Informacje dotyczące zdarzenia", fields: [
+          { name: "rodzaj", label: "Rodzaj zdarzenia", type: "radio", required: true, options: ["Pożar", "IZM", "Miejscowe Zagrożenie", "Alarm Fałszywy"] },
+          { name: "w", label: "W", type: "radio", options: ["M", "D", "Ś", "L"] },
+          { name: "lokalizacja", label: "Lokalizacja zdarzenia (powiat, miejscowość)", type: "text", required: true },
+          { name: "dotyczy", label: "Dotyczy", type: "radio", options: ["Obiekt Zamknięty", "Teren otwarty"] },
+          { name: "dotyczyOpis", label: "Dotyczy – opis", type: "text" } ] },
+        { title: "Obsada zastępów", row: true, fields: [
+          { name: "zastep", label: "Zastęp", type: "text" },
+          { name: "kierowca", label: "Kierowca", type: "text" },
+          { name: "dowodca", label: "Dowódca", type: "text" },
+          { name: "przodownikR1", label: "Przodownik R1", type: "text" },
+          { name: "pomocnikR1", label: "Pomocnik R1", type: "text" },
+          { name: "przodownikR2", label: "Przodownik R2", type: "text" },
+          { name: "pomocnikR2", label: "Pomocnik R2", type: "text" } ] },
+        { title: "Zadysponowane SiŚ / środki techniczne", fields: [ { name: "sis", label: "", type: "textarea" } ] },
+        { title: "Opis działań", fields: [ { name: "opis", label: "", type: "textarea" } ] }
+      ]
+    },
+    kmdr: {
+      prefix: "KMDR", tab: "Karty KMDR", title: "Karta KMDR", report: "Koordynacja działań medycznych",
+      sections: [
+        { title: "Koordynacja działań medycznych", fields: [
+          { name: "poszkodowani", label: "Ilość osób poszkodowanych", type: "number" },
+          { name: "opis", label: "Opis działań medycznych (opis działań podjętych do poszczególnych osób)", type: "textarea" } ] },
+        { title: "MDR", fields: [ { name: "mdr", label: "", type: "checks", options: ["MDR niewymagane", "Podjęte MDR bez przekazania ZRM", "Podjęte MDR z przekazaniem ZRM", "Brak osób poszkodowanych"] } ] },
+        { title: "Triage", row: true, fields: [
+          { name: "triageZielony", label: "Ilość osób - kolor zielony", type: "number" },
+          { name: "triageZolty", label: "Ilość osób - kolor żółty", type: "number" },
+          { name: "triageCzarny", label: "Ilość osób - kolor Czarny", type: "number" },
+          { name: "triageBrak", label: "", type: "checks", options: ["BRAK osób poszkodowanych"] } ] },
+        { title: "Zastosowane działania", fields: [
+          { name: "sprzet", label: "", type: "checks", options: ["Podano TLEN", "Użyto Bandaży / Gaz", "Użyto Hydrożeli", "Użyto sprzętu spec."] },
+          { name: "rko", label: "", type: "checks", options: ["Podjęto RKO", "Wykonano Defibrylację"] },
+          { name: "szpital", label: "", type: "checks", options: ["Przetransportowano do szpitala", "NIE Przetransportowano do szpitala"] } ] },
+        { title: "Podpis", fields: [ { name: "autor", label: "Notatkę sporządził", type: "text" } ] }
+      ]
+    }
+  };
+
+  let cardFormKind = "";
+  function fieldEl(f) {
+    const wrap = document.createElement("div"); wrap.className = "grp";
+    if (f.type === "radio" || f.type === "checks") {
+      if (f.label) { const l = document.createElement("span"); l.className = "fl"; l.textContent = f.label; wrap.appendChild(l); }
+      const chips = document.createElement("div"); chips.className = "chips";
+      f.options.forEach((o, i) => {
+        const lab = document.createElement("label"), inp = document.createElement("input"), sp = document.createElement("span");
+        inp.type = f.type === "radio" ? "radio" : "checkbox"; inp.name = f.name; inp.value = o;
+        if (f.required && f.type === "radio" && i === 0) inp.required = true;
+        sp.textContent = o; lab.append(inp, sp); chips.appendChild(lab);
+      });
+      wrap.appendChild(chips);
+    } else {
+      const id = "cg_" + f.name;
+      if (f.label) { const lab = document.createElement("label"); lab.className = "f"; lab.htmlFor = id; lab.textContent = f.label; wrap.appendChild(lab); }
+      const inp = f.type === "textarea" ? document.createElement("textarea") : document.createElement("input");
+      if (f.type !== "textarea") inp.type = f.type;
+      inp.id = id; inp.name = f.name; if (f.required) inp.required = true;
+      if (f.type === "number") { inp.min = 0; inp.inputMode = "numeric"; }
+      wrap.appendChild(inp);
+    }
+    return wrap;
+  }
+  function openForm(kind) {
+    const t = CARD_TYPES[kind], form = $("cardGen");
+    $("cardTitle").textContent = t.title;
+    if (cardFormKind !== kind) {
+      form.innerHTML = "";
+      t.sections.forEach((s, i) => {
+        const fs = document.createElement("fieldset"); if (i === 0) fs.style.marginTop = "0";
+        const lg = document.createElement("legend"); lg.textContent = s.title; fs.appendChild(lg);
+        const box = document.createElement("div"); if (s.row) box.className = "row";
+        s.fields.forEach((f) => box.appendChild(fieldEl(f)));
+        fs.appendChild(box); form.appendChild(fs);
+      });
+      const acts = document.createElement("div"); acts.className = "actions";
+      const ok = document.createElement("button"); ok.type = "submit"; ok.className = "primary"; ok.textContent = "Zapisz i wyślij";
+      const rs = document.createElement("button"); rs.type = "reset"; rs.className = "ghost"; rs.style.color = "var(--navy)"; rs.textContent = "Wyczyść";
+      acts.append(ok, rs); form.appendChild(acts);
+      form.onsubmit = (e) => {
+        e.preventDefault();
+        const fd = new FormData(form), data = {};
+        t.sections.forEach((s) => s.fields.forEach((f) => { data[f.name] = f.type === "checks" ? fd.getAll(f.name) : (fd.get(f.name) || ""); }));
+        sendCard(kind, data, form, e.submitter);
+      };
+      cardFormKind = kind;
+    }
+    show("cardView");
+  }
+  $("goKdr").addEventListener("click", () => openForm("kdr"));
+  $("goKmdr").addEventListener("click", () => openForm("kmdr"));
+
+  function fmtVal(f, v) {
+    if (Array.isArray(v)) return v.join(", ");
+    if (f.type === "date" && v) return fmtDate(v);
+    return v;
+  }
+  function openGeneric(c) {
+    const t = CARD_TYPES[c.kind], d = c.data || {}, sheet = $("sheet");
+    histTab = c.kind; sheet.innerHTML = "";
+    const add = (tag, cls, text) => { const el = document.createElement(tag); if (cls) el.className = cls; el.textContent = text; sheet.appendChild(el); return el; };
+    add("div", "org", "Komenda Wojewódzka Państwowej Straży Pożarnej w Krakowie");
+    add("h2", "", t.report);
+    add("div", "num", c.number);
+    const sent = document.createElement("div"); sent.className = "sent";
+    const lamp = document.createElement("span"); lamp.className = "lamp";
+    const st = document.createElement("span"); st.textContent = "Wysłano: " + fmtSent(c.sentAt);
+    sent.append(lamp, st); sheet.appendChild(sent);
+    t.sections.forEach((s) => {
+      add("h3", "sec", s.title);
+      const dl = document.createElement("dl");
+      let shown = 0;
+      s.fields.forEach((f) => {
+        const val = fmtVal(f, d[f.name]);
+        if (!f.label && f.type === "checks" && !val) return;   // niezaznaczone pole bez etykiety pomijamy
+        shown++;
+        const row = document.createElement("div"); row.className = "kv" + (f.label ? "" : " one");
+        const dd = document.createElement("dd"); dd.textContent = val || "—";
+        if (f.label) { const dt = document.createElement("dt"); dt.textContent = f.label; row.append(dt, dd); } else row.append(dd);
+        dl.appendChild(row);
+      });
+      if (!shown) { const row = document.createElement("div"); row.className = "kv one"; const dd = document.createElement("dd"); dd.textContent = "—"; row.appendChild(dd); dl.appendChild(row); }
+      sheet.appendChild(dl);
+    });
+    show("detailView");
+  }
+  function openAny(c) { if (c.kind === "skkw") openCard(c); else openGeneric(c); }
+
+  // powiadomienie w prawym dolnym rogu o karcie wysłanej przez kogoś innego
+  function showToast(c) {
+    const t = CARD_TYPES[c.kind];
+    const el = document.createElement("div"); el.className = "toast"; el.setAttribute("role", "status");
+    const lamp = document.createElement("span"); lamp.className = "lamp";
+    const body = document.createElement("button"); body.type = "button"; body.className = "tbody";
+    const line = (tag, text) => { const x = document.createElement(tag); x.textContent = text; return x; };
+    body.append(line("b", c.number), line("span", t.title), line("span", "Wysłano: " + fmtSent(c.sentAt)), line("span", "Trafiło do: Historia Kart → " + t.tab));
+    body.addEventListener("click", () => { el.remove(); openAny(c); });
+    const x = line("button", "×"); x.type = "button"; x.className = "tx"; x.setAttribute("aria-label", "Zamknij powiadomienie");
+    x.addEventListener("click", () => el.remove());
+    el.append(lamp, body, x);
+    $("toasts").appendChild(el);
+    setTimeout(() => el.remove(), 20000);
   }
 
 
@@ -626,8 +865,17 @@
     }).finally(() => { if (btn) btn.disabled = false; });
   });
 
-  // potwierdzenia z e-Remizy: wpis w historii + status pojazdów "Wyjazd do zdarzenia"
+  // jeden nasłuch kanału: karty od innych użytkowników + potwierdzenia z e-Remizy
   AlarmChannel.listen((m, isHist) => {
+    if (m.typ === "karta") {
+      if (!CARD_TYPES[m.kind]) return;
+      const fresh = addCard({ id: m.id, kind: m.kind, number: m.number, sentAt: m.ts, data: m.data || {}, od: m.od });
+      if (fresh) {
+        if (!$("histView").classList.contains("hidden")) renderHistory();
+        if (!isHist && m.od !== CLIENT_ID) showToast(cardStore[m.id]);
+      }
+      return;
+    }
     if (m.typ !== "ack" || isHist) return;
     (m.pojazdy || []).forEach((p) => {
       const vid = p.id || (VEH.find((v) => v.inw === p.inw) || {}).id;
