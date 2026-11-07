@@ -103,7 +103,7 @@
 <script src="alarm-channel.js"></script>
 <script>
   const LOGIN = "TEST", HASLO = "TEST";
-  const UNITS = [["JRG3", "JRG 3"], ["*", "Wszystkie jednostki (test)"]];
+  const UNITS = [["JRG3", "JRG 3"], ["GRSOSP", "GRS OSP (KF 327-23)"], ["*", "Wszystkie jednostki (test)"]];
   const RODZAJE = { P: "Pożar", MZ: "Miejscowe zagrożenie", AF: "Alarm fałszywy" };
   const $ = (id) => document.getElementById(id);
   const pad = (n) => String(n).padStart(2, "0");
@@ -236,7 +236,7 @@
 
   $("test").addEventListener("click", () => {
     unlock();
-    const pojazd = ["KF 303-21 GBA-Rt MAN MT", "JRG3-30321", "v0"];
+    const pojazd = me.unit === "GRSOSP" ? ["KF 327-23 SLRr MAN TGE", "GRSOSP-32723", "v6"] : ["KF 303-21 GBA-Rt MAN MT", "JRG3-30321", "v0"];
     onMsg({ id: "test" + Date.now(), typ: "alarm", nr: "ALARM TESTOWY", rodzaj: "P", adres: "ul. Testowa 1 (test lokalny)", opis: "To jest test – alarm nie został wysłany do sieci.", rejon: "", flagi: [], pojazdy: [{ id: pojazd[2], name: pojazd[0], inw: pojazd[1] }], ts: new Date().toISOString() }, false);
   });
 </script>
