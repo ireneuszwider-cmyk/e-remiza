@@ -112,6 +112,13 @@
   .st button { display: block; width: 178px; margin: 8px auto; background: #cfcfcf; color: #222; font-weight: 400; padding: 7px 10px; border-radius: 6px; }
   .st button:hover { background: #bdbdbd; }
   .st button.on { background: #1fa43b; color: #fff; font-weight: 600; }
+  .st button.on.warn { background: #f59e0b; color: #2b1a00; }
+  .pill.warn { background: #fde6a6; color: #8a4b00; }
+  .lg { padding: 8px 0 6px; border-bottom: 1px solid #e3e3e3; }
+  .lg:last-child { border-bottom: 0; }
+  .lg b { display: block; color: #111; }
+  .lg ul { list-style: none; margin: 4px 0 0; padding: 0; }
+  .lg li { padding: 2px 0; color: #333; }
   .hist { margin: 0; color: var(--red); font-size: 1.05rem; }
   .log li b { display: block; color: #111; }
   .swdhead .snd { padding: 8px 14px; }
@@ -273,7 +280,7 @@
     <button type="button" class="ghost" id="swdBack">Wróć do menu</button>
   </div>
   <div class="swdwrap">
-    <div class="panel"><h3 class="hist">Historia statusów</h3><ul class="log" id="swdLog"></ul></div>
+    <div class="panel"><h3 class="hist">Historia statusów</h3><div class="log" id="swdLog"></div></div>
     <div class="grid" id="swdGrid"></div>
 
     <form class="panel meld" id="meldForm">
@@ -446,24 +453,16 @@
   /* ===== System SWD-ST ===== */
   const STATUSES = ["Wyjazd do zdarzenia", "Na miejscu", "Lokalizacja/ Opanowano", "Zakończenie działań", "Przedysponowano", "W bazie", "Czasowo wyłączony z podziału", "PnZR"];
   const VEH = [
-    ["GF 401-21 GBA MAN MT", "JRG1-40121", "1 wyjazd, Średni gaśniczy", 0],
-    ["GF 401-22 GBAPr Mercedes Atego", "JRG1-40122", "2 wyjazd, Średni gaśniczy proszkowy", 1],
-    ["GF 401-25 GCBA VOLVO FMX", "JRG1-40125", "1 wyjazd, Ciężki gaśniczy", 1],
-    ["GF 401-43 SCRT Renault Kerax", "JRG1-40143", "Techniczny", 1],
-    ["GF 401-51 SD Iveco Magirus", "JRG1-40151", "Drabina Mechaniczna", 1],
-    ["GF 401-59 SLRMed Mercedes-Benz Sprinter", "JRG1-40159", "Lekki samochód ratownictwa medycznego", 0],
-    ["GF 401-90 SLRr Ford RANGER", "JRG1-40190", "Operacyjny JRG", 1],
-    ["GF 402-21 GBA Renault D16/ Stolarczyk", "JRG2-40221", "1 wyjazd, Średni gaśniczy", 1],
-    ["GF 402-25 GCBA Man TGS 35,510 / Stolarczyk", "JRG2-40225", "1 wyjazd, Ciężki gaśniczy", 1],
-    ["GF 402-26 GCBA-Rt Man 18.320/ MotoTruck", "JRG2-40226", "1 wyjazd, Ciężki gaśniczy techniczny", 1],
-    ["GF 402-51 SD Iveco Magirus", "JRG2-40251", "Drabina Mechaniczna", 1],
-    ["GF 402-63 SCRRChem MobiLab Scania P370B6x2*4NB XT/ Szczęśniak", "JRG2-40263", "ratownictwa chemicznego, rozpoznawczo-pomiarowy", 1],
-    ["GF 402-71 SCKn Renault Kerax/ISS Wawrzaszek", "JRG2-40271", "Kontenerowiec", 1],
-    ["GF 402-90 SLRr Volkswagen Amarok", "JRG2-40290", "Operacyjny JRG", 1],
-    ["GF 409-71 GBARt Renalut D16/Szczęśniak", "OSP-40971", "1 wyjazd, Średni gaśniczy", 1],
-    ["GF 400-90 SLRr Skoda Octavia", "JRG1-40090", "Operacyjny KP PSP", 1],
-    ["GF 400-81 SCKw Renault Kerax", "JRG1-40081", "Kwatermistrzowski KP PSP", 1]
-  ].map(([name, inw, typ, ok]) => ({ name, inw, typ, ok: !!ok }));
+    ["KF 303-21 GBA-Rt MAN MT", "JRG3-30321", "1 wyjazd, Średni gaśniczy, ratownictwo tech.", 1],
+    ["KF 303-22 GBA VOLVO FL", "JRG3-30322", "2 wyjazd, Średni gaśniczy", 1],
+    ["KF 303-25 GCBA SCANIA WISS", "JRG3-30325", "3 wyjazd, Ciężki gaśniczy", 1],
+    ["KF 303-43 SRt SCANIA SZCZĘŚNIAK", "JRG3-30343", "Samochód Ratownictwa Technicznego", 1],
+    ["KF 303-51 SHD IVECO MAGIRUS", "JRG3-30343", "Samochód z wysięgnikiem hydraulicznym", 1],
+    ["KF 220-90 SLOp VOLKSWAGEN AMAROK v6", "JRG3-30321", "samochód operacyjny KWPSP w Krakowie", 1]
+  ].map(([name, inw, typ, ok], i) => ({ id: "v" + i, name, inw, typ, ok: !!ok }));
+  // statusy "normalne" (zielone); każdy inny wybrany status świeci na żółto-pomarańczowo
+  const NORMAL_STATUS = ["W bazie"];
+  const isWarn = (s) => !!s && !NORMAL_STATUS.includes(s);
   const EVENTS = ["P", "MZ", "AF", "ĆW", "PnZR", "WG/A"];
   const FLAGS = [
     ["Informacyjne / do wiadomości", ["DO WIADOMOŚCI KW PSP", "DO WIADOMOŚCI KG PSP"]],
@@ -472,7 +471,7 @@
     ["Typowe zdarzenia miejscowe", ["PLAMA OLEJU", "POMPOWANIE WODY", "POŻAR LASU/PÓL", "TLENEK WĘGLA", "WIATROŁOMY", "USUWANIE OWADÓW"]]
   ];
   const REJONY = [["Tuchomie 80", "#0f9d86"], ["Bytów 90", "#17a38a"], ["Bytów 100", "#27a98f"], ["Dąbki 110", "#c42b3a"], ["Udorpie 120", "#12a58c"], ["Miłanów 110", "#b92a37"]];
-  const SWDKEY = "swd-v1";
+  const SWDKEY = "swd-v2";
   let swd = { status: {}, log: [] };
   try { swd = JSON.parse(localStorage.getItem(SWDKEY)) || swd; } catch (e) {}
   const swdSave = () => { try { localStorage.setItem(SWDKEY, JSON.stringify(swd)); } catch (e) {} };
@@ -522,33 +521,43 @@
 
   const hm = () => { const d = new Date(); return pad(d.getHours()) + ":" + pad(d.getMinutes()); };
   function renderLog() {
-    const ul = $("swdLog"); ul.innerHTML = "";
-    swd.log.forEach((l) => {
-      const li = mk("li");
-      if (l.title) { li.append(mk("b", "", l.title), document.createTextNode(l.txt)); }
-      else { li.append(document.createTextNode((l.t ? l.t + " " : "") + l.txt)); }
-      ul.appendChild(li);
+    const box = $("swdLog"); box.innerHTML = "";
+    if (!swd.log.length) { box.appendChild(mk("p", "empty", "Brak zmian statusów.")); return; }
+    const groups = [["", "Meldunki EWID-ST"]].concat(VEH.map((v) => [v.id, v.name]));
+    groups.forEach(([id, title]) => {
+      const items = swd.log.filter((l) => l.veh === id);
+      if (!items.length) return;
+      const g = mk("div", "lg"); g.appendChild(mk("b", "", title + ":"));
+      const ul = mk("ul"); items.forEach((l) => ul.appendChild(mk("li", "", l.txt))); g.appendChild(ul);
+      box.appendChild(g);
     });
   }
-  function addLog(title, txt) { swd.log.unshift({ title, txt }); swd.log = swd.log.slice(0, 100); swdSave(); renderLog(); }
+  // vehId = id wozu, a "" dla meldunków; wpisy trafiają do grupy swojego wozu (najnowszy na górze grupy)
+  function addLog(vehId, txt) { swd.log.unshift({ veh: vehId || "", txt }); swd.log = swd.log.slice(0, 300); swdSave(); renderLog(); }
 
   function renderGrid() {
     const grid = $("swdGrid"); grid.innerHTML = "";
     VEH.forEach((v) => {
       const base = v.ok ? "Sprawny, w podziale." : "Niesprawny, w naprawie";
+      const cur = () => swd.status[v.id] || "";
       const c = mk("div", "veh");
-      const pill = mk("span", "pill" + (v.ok || swd.status[v.inw] ? "" : " bad"), swd.status[v.inw] || base);
+      const pill = mk("span", "pill", "");
+      const paint = () => {
+        pill.textContent = cur() || base;
+        pill.className = "pill" + (isWarn(cur()) ? " warn" : (!v.ok && !cur() ? " bad" : ""));
+      };
+      paint();
       c.append(mk("h4", "", v.name), mk("p", "", "Nr inw.: " + v.inw), mk("p", "", "Typ: " + v.typ), pill);
       const st = mk("div", "st");
+      const cls = (s) => (cur() === s ? "on" + (isWarn(s) ? " warn" : "") : "");
       STATUSES.forEach((s) => {
-        const b = mk("button", swd.status[v.inw] === s ? "on" : "", s); b.type = "button";
+        const b = mk("button", cls(s), s); b.type = "button";
         b.addEventListener("click", () => {
-          swd.status[v.inw] = swd.status[v.inw] === s ? "" : s;
+          swd.status[v.id] = cur() === s ? "" : s;
           sndClick();
-          if (swd.status[v.inw]) addLog(v.name + ":", s + " – " + hm()); else swdSave();
-          st.querySelectorAll("button").forEach((x) => x.classList.toggle("on", x.textContent === swd.status[v.inw]));
-          pill.textContent = swd.status[v.inw] || base;
-          pill.classList.toggle("bad", !v.ok && !swd.status[v.inw]);
+          if (cur()) addLog(v.id, s + " – " + hm()); else swdSave();
+          st.querySelectorAll("button").forEach((x) => { x.className = cls(x.textContent); });
+          paint();
         });
         st.appendChild(b);
       });
@@ -600,12 +609,12 @@
     const nr = "ALM " + pad(seq, 3) + "/" + year;
     const alarm = {
       typ: "alarm", nr, rodzaj: evSel, adres, opis: $("mOpis").value.trim(), rejon: $("mRejon").value, flagi: flags,
-      pojazdy: VEH.filter((v) => veh.includes(v.name)).map((v) => ({ name: v.name, inw: v.inw }))
+      pojazdy: VEH.filter((v) => veh.includes(v.name)).map((v) => ({ id: v.id, name: v.name, inw: v.inw }))
     };
     const btn = e.submitter; if (btn) btn.disabled = true;
     AlarmChannel.send(alarm).then(() => {
       swd.alarmSeq[year] = seq; swdSave();
-      addLog("Meldunek EWID-ST " + nr + ":", evSel + " – " + adres + " (" + veh.length + " poj.) – " + hm()); sndClick();
+      addLog("", nr + ": " + evSel + " – " + adres + " (" + veh.length + " poj.) – " + hm()); sndClick();
       ok.textContent = "Alarm wysłany (" + nr + "): " + stamp() + " · " + AlarmChannel.mode;
       ok.classList.remove("hidden");
       $("meldForm").querySelectorAll("input[type=checkbox]").forEach((i) => (i.checked = false));
@@ -619,9 +628,12 @@
   // potwierdzenia z e-Remizy: wpis w historii + status pojazdów "Wyjazd do zdarzenia"
   AlarmChannel.listen((m, isHist) => {
     if (m.typ !== "ack" || isHist) return;
-    const unit = m.jednostka === "OSP" ? "OSP" : String(m.jednostka).replace("JRG", "JRG ");
-    if (m.akcja === "wyjazd") (m.pojazdy || []).forEach((p) => { swd.status[p.inw] = "Wyjazd do zdarzenia"; });
-    addLog(unit + ":", (m.akcja === "wyjazd" ? "wyjazd na alarm " : "odebrano alarm ") + m.nr + " – " + hm());
+    (m.pojazdy || []).forEach((p) => {
+      const vid = p.id || (VEH.find((v) => v.inw === p.inw) || {}).id;
+      if (!vid) return;
+      if (m.akcja === "wyjazd") swd.status[vid] = "Wyjazd do zdarzenia";
+      addLog(vid, (m.akcja === "wyjazd" ? "Wyjazd na alarm " : "Odebrano alarm ") + m.nr + " – " + hm());
+    });
     sndClick();
     if (!$("swdApp").classList.contains("hidden")) renderGrid();
   });
